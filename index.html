@@ -995,7 +995,10 @@ const Loop = (() => {
 
   Gfx.init(canvas);
   window.addEventListener("resize", () => Gfx.resize());
-  ritual.style.display = "none";   // this build drifts straight in — no opening prompt
+  // pure audiovisual build — no text at all: hide the prompt, the poetry, the controls
+  ritual.style.display = "none";
+  document.getElementById("poetry").style.display = "none";
+  dock.style.display = "none";
 
   if(typeof saved.volume === "number"){ vol.value = saved.volume; }
 
@@ -1011,36 +1014,22 @@ const Loop = (() => {
     const seed = fnv1a(seedStr);
     dream = deriveDream(mulberry32(seed));
 
-    Gfx.setDream(dream);
-    Poet.init(lineEl, mulberry32((seed ^ 0x9e3779b9) >>> 0), memory);
-    Poet.startFallback();                       // poetry drifts on its own gentle cadence
+    Gfx.setDream(dream);                          // animation only — no poetry, no text
     Audio.setVolume(parseFloat(vol.value));
-    Loop.start(dream, reduced);                 // the dreamscape moves immediately
-    State.save({ volume: parseFloat(vol.value) });
-    setTimeout(() => dock.classList.add("ready"), 1800);
+    Loop.start(dream, reduced);                   // the dreamscape moves immediately
   }
 
-  // Drift straight in. Audio (blocked by browser autoplay policy) wakes on the
-  // first interaction; a faint hint says so, then fades on the first gesture.
-  const hint = document.createElement("div");
-  hint.textContent = "click anywhere for sound";
-  hint.style.cssText = "position:fixed;left:0;right:0;bottom:7%;text-align:center;z-index:6;"
-    + "pointer-events:none;opacity:0;transition:opacity 2s ease;"
-    + "font-family:'Iowan Old Style',Palatino,Georgia,serif;font-style:italic;"
-    + "font-size:.82rem;letter-spacing:.16em;color:rgba(233,227,214,.34);";
-  document.body.appendChild(hint);
-  setTimeout(() => { hint.style.opacity = "1"; }, 900);
-
-  let woke = false;
+  // Pure animation + sound, no text. Audio (blocked by autoplay policy) wakes on
+  // the first interaction — a click, key, or touch anywhere.
   function wakeAudio(){
     if(!dream) return;
     if(!Audio.isStarted()) Audio.start(dream); else Audio.resume();
-    if(!woke){ woke = true; hint.style.opacity = "0"; setTimeout(() => hint.remove(), 1800); }
   }
   window.addEventListener("pointerdown", wakeAudio);
   window.addEventListener("keydown", wakeAudio);
+  window.addEventListener("touchstart", wakeAudio, { passive: true });
 
-  begin("");   // <- the whole change: start the dream on load, no text prompt
+  begin("");   // start the dream on load — animation immediately, sound on first gesture
 
   // ---- gentle interaction once the dream is running ----
   window.addEventListener("pointermove", e => {

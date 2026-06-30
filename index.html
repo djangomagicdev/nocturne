@@ -1017,6 +1017,9 @@ const Loop = (() => {
     Gfx.setDream(dream);                          // animation only — no poetry, no text
     Audio.setVolume(parseFloat(vol.value));
     Loop.start(dream, reduced);                   // the dreamscape moves immediately
+    Audio.start(dream);                           // try sound on load: browsers that allow
+                                                  // autoplay (returning/engaged visitors) play
+                                                  // now; first-time visitors wait for one gesture
   }
 
   // Pure animation + sound, no text. Audio (blocked by autoplay policy) wakes on

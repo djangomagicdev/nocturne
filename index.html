@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>NOCTURNE</title>
+<style>
+  :root{
+    --ink: #e9e3d6;
+    --ink-dim: rgba(233, 227, 214, 0.62);
+    --bg: #05060b;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  }
+  *{ box-sizing: border-box; margin: 0; padding: 0; }
+  html, body{ height: 100%; background: var(--bg); overflow: hidden; }
+  body{
+    font-family: var(--serif);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    cursor: default;
+  }
+
+  /* ---- the dream canvas ---- */
+  #gl{
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    display: block; z-index: 0;
+  }
+
+  /* ---- poetry overlay ---- */
+  #poetry{
+    position: fixed; inset: 0; z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+    padding: 8vh 9vw;
+  }
+  #poetry .line{
+    font-size: clamp(1.35rem, 3.4vw, 2.7rem);
+    font-weight: 400; font-style: italic;
+    line-height: 1.5;
+    text-align: center;
+    max-width: 17em;
+    color: var(--ink);
+    text-shadow: 0 1px 30px rgba(0,0,0,0.55), 0 0 1px rgba(0,0,0,0.4);
+    opacity: 0;
+    letter-spacing: 0.34em;
+    filter: blur(3px);
+    transition: opacity 3.2s ease, letter-spacing 3.6s ease, filter 3.2s ease;
+    will-change: opacity, letter-spacing, filter;
+  }
+  #poetry .line.show{
+    opacity: 0.92;
+    letter-spacing: 0.02em;
+    filter: blur(0px);
+  }
+
+  /* ---- opening ritual ---- */
+  #ritual{
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(120% 120% at 50% 42%, #0a0c14 0%, #04050a 70%, #000 100%);
+    transition: opacity 1.8s ease;
+    padding: 6vh 8vw;
+  }
+  #ritual.gone{ opacity: 0; pointer-events: none; }
+  .r-inner{ width: min(40rem, 92vw); text-align: center; }
+  .r-q{
+    font-size: clamp(1.5rem, 4.2vw, 2.6rem);
+    font-style: italic; color: var(--ink);
+    letter-spacing: 0.02em; line-height: 1.4;
+    opacity: 0; animation: rise 2.6s 0.3s ease forwards;
+  }
+  #r-input{
+    margin-top: 2.4rem; width: 100%;
+    background: transparent; border: none;
+    border-bottom: 1px solid rgba(233,227,214,0.22);
+    color: var(--ink); font-family: var(--serif);
+    font-size: clamp(1.05rem, 2.6vw, 1.5rem);
+    font-style: italic; text-align: center;
+    padding: 0.5rem 0.2rem 0.7rem;
+    letter-spacing: 0.04em;
+    outline: none; caret-color: var(--ink-dim);
+    opacity: 0; animation: rise 2.6s 0.9s ease forwards;
+    transition: border-color 0.6s ease;
+  }
+  #r-input::placeholder{ color: rgba(233,227,214,0.28); font-style: italic; }
+  #r-input:focus{ border-bottom-color: rgba(233,227,214,0.5); }
+  .r-hint{
+    margin-top: 1.6rem;
+    font-size: 0.82rem; letter-spacing: 0.18em; text-transform: lowercase;
+    color: var(--ink-dim);
+    opacity: 0; animation: rise 2.6s 1.6s ease forwards;
+  }
+  @keyframes rise{ from{ opacity: 0; transform: translateY(10px); } to{ opacity: 1; transform: none; } }
+
+  /* ---- minimal controls ---- */
+  #dock{
+    position: fixed; right: 18px; bottom: 16px; z-index: 5;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+    font-size: 0.78rem; letter-spacing: 0.14em;
+    color: var(--ink-dim);
+    opacity: 0; transition: opacity 1.2s ease;
+  }
+  #dock.ready{ opacity: 0.5; }
+  #dock:hover{ opacity: 0.95; }
+  #panel{
+    display: none;
+    background: rgba(8, 9, 15, 0.5);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(233,227,214,0.1);
+    border-radius: 12px; padding: 14px 16px;
+    min-width: 200px;
+  }
+  #panel.open{ display: block; }
+  #panel .row{ display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 8px 0; }
+  #panel label{ text-transform: lowercase; }
+  #panel input[type=range]{ width: 110px; accent-color: #cfc6b4; }
+  #panel button{
+    font-family: var(--serif); font-style: italic;
+    background: transparent; color: var(--ink); cursor: pointer;
+    border: 1px solid rgba(233,227,214,0.16); border-radius: 8px;
+    padding: 5px 10px; font-size: 0.82rem; letter-spacing: 0.06em;
+    transition: border-color 0.4s ease, background 0.4s ease;
+  }
+  #panel button:hover{ border-color: rgba(233,227,214,0.4); background: rgba(233,227,214,0.05); }
+  #panel .keep{ width: 100%; margin-top: 6px; }
+  #panel .note{ font-size: 0.7rem; letter-spacing: 0.1em; color: rgba(233,227,214,0.4); margin-top: 10px; line-height: 1.6; }
+  #glyph{
+    cursor: pointer; user-select: none;
+    font-size: 1.1rem; letter-spacing: 0;
+    width: 34px; height: 34px; line-height: 34px; text-align: center;
+    border-radius: 50%;
+    border: 1px solid rgba(233,227,214,0.12);
+    transition: transform 0.6s ease, border-color 0.4s ease;
+  }
+  #glyph:hover{ transform: rotate(90deg); border-color: rgba(233,227,214,0.4); }
+
+  @media (prefers-reduced-motion: reduce){
+    #poetry .line{ transition: opacity 1.2s ease; filter: none; letter-spacing: 0.02em; }
+    .r-q, #r-input, .r-hint{ animation-duration: 0.8s; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="poetry"><div class="line" id="line"></div></div>
+
+  <div id="dock">
+    <div id="panel">
+      <div class="row"><label for="vol">volume</label><input id="vol" type="range" min="0" max="1" step="0.01" value="0.8" /></div>
+      <div class="row"><label>sound</label><button id="muteBtn">on</button></div>
+      <button class="keep" id="keepBtn">keep this line</button>
+      <div class="note">move to drift · click to cast a stone · space to mute</div>
+    </div>
+    <div id="glyph" title="settings">&#10038;</div>
+  </div>
+
+  <div id="ritual">
+    <div class="r-inner">
+      <div class="r-q">what do you not want to forget?</div>
+      <input id="r-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="120" placeholder="" />
+      <div class="r-hint">press enter to begin · leave empty to simply drift</div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+/* ===========================================================================
+   NOCTURNE — a dream you fall into, that quietly forgets you back.
+   One self-contained file. No build, no dependencies. Double-click to open.
+
+   Sections:  Seed · Gfx (WebGL2 / Canvas2D) · Audio · Poet · State · Loop · main
+   =========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   Seed — deterministic soul + fingerprint
+   A typed memory hashes to a seed; the seed chooses palette, key, drift, motif.
+--------------------------------------------------------------------------- */
+function fnv1a(str){
+  let h = 0x811c9dc5 >>> 0;
+  for(let i=0;i<str.length;i++){
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const pick = (arr, rng) => arr[Math.floor(rng() * arr.length)];
+
+// Hand-tuned cosine-palette presets (Inigo Quilez form): low-saturation, nocturnal.
+// Each: a (bias), b (amp), c (freq), d (phase) — beautiful by construction.
+const PALETTES = [
+  { name:"deep night", a:[0.10,0.12,0.20], b:[0.18,0.18,0.26], c:[1.0,1.0,1.0], d:[0.00,0.08,0.18] },
+  { name:"violet dusk", a:[0.17,0.11,0.21], b:[0.22,0.16,0.28], c:[1.0,1.0,0.85], d:[0.08,0.20,0.36] },
+  { name:"teal abyss",  a:[0.06,0.15,0.17], b:[0.10,0.22,0.24], c:[1.0,1.0,1.0], d:[0.30,0.22,0.14] },
+  { name:"ember night", a:[0.16,0.11,0.11], b:[0.24,0.15,0.13], c:[1.0,0.9,0.8], d:[0.00,0.14,0.30] },
+  { name:"glacier",     a:[0.12,0.16,0.22], b:[0.16,0.20,0.26], c:[0.9,1.0,1.1], d:[0.18,0.26,0.40] },
+  { name:"old gold",    a:[0.15,0.13,0.12], b:[0.20,0.18,0.14], c:[1.0,0.95,0.7],d:[0.10,0.18,0.28] },
+];
+const MODES = {
+  lydian:     [0,2,4,6,7,9,11],
+  dorian:     [0,2,3,5,7,9,10],
+  aeolian:    [0,2,3,5,7,8,10],
+  pentatonic: [0,3,5,7,10],
+};
+const MODE_NAMES = Object.keys(MODES);
+
+function deriveDream(rng){
+  const pal = pick(PALETTES, rng);
+  // gently perturb the palette phase so two "deep night" dreams still differ
+  const d = pal.d.map(v => v + (rng()-0.5)*0.06);
+  const modeName = pick(MODE_NAMES, rng);
+  const roots = [45,47,48,50,43]; // A2 B2 C3 D3 G2 — low, warm
+  const root = pick(roots, rng);
+  return {
+    name: pal.name,
+    palA: pal.a, palB: pal.b, palC: pal.c, palD: d,
+    mode: MODES[modeName], modeName,
+    root,
+    drift: 0.7 + rng()*0.6,         // global motion multiplier
+    hue0: rng(),                    // starting palette phase
+  };
+}
+
+/* ---------------------------------------------------------------------------
+   Gfx — the dreamscape. WebGL2 fullscreen-triangle; Canvas2D graceful fallback.
+--------------------------------------------------------------------------- */
+const Gfx = (() => {
+  let canvas, gl = null, prog, vao, uni = {}, mode = "none";
+  let W = 0, H = 0, dpr = 1;
+  const MAX_PIXELS = 9000000;    // budget cap for very large displays
+  let dream = null;
+  // canvas2d state
+  let c2d = null;
+
+  const VERT = `#version 300 es
+  void main(){
+    // fullscreen triangle from gl_VertexID — no vertex buffer needed
+    vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+    gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+  }`;
+
+  const FRAG = `#version 300 es
+  precision highp float;
+  out vec4 fragColor;
+
+  uniform vec2  u_res;
+  uniform float u_time;
+  uniform vec2  u_mouse;     // smoothed, -1..1
+  uniform float u_warp;      // fog energy 0..1
+  uniform float u_bloom;     // brightness pulse 0..~1
+  uniform float u_hue;       // palette phase migration
+  uniform float u_phase;     // 0..1 dusk -> night -> false dawn
+  uniform vec4  u_ripple;    // xy center(uv), z strength, w age(s)
+  uniform vec3  u_pA, u_pB, u_pC, u_pD;
+
+  #define OCTAVES 4
+
+  float hash21(vec2 p){
+    p = fract(p * vec2(123.34, 345.45));
+    p += dot(p, p + 34.345);
+    return fract(p.x * p.y);
+  }
+  float vnoise(vec2 p){
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f*f*(3.0 - 2.0*f);
+    float a = hash21(i);
+    float b = hash21(i + vec2(1.,0.));
+    float c = hash21(i + vec2(0.,1.));
+    float d = hash21(i + vec2(1.,1.));
+    return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+  }
+  const mat2 ROT = mat2(0.8, 0.6, -0.6, 0.8);
+  float fbm(vec2 p){
+    float s = 0.0, a = 0.5;
+    for(int i=0;i<OCTAVES;i++){
+      s += a * vnoise(p);
+      p = ROT * p * 2.0;
+      a *= 0.5;
+    }
+    return s;
+  }
+  vec3 palette(float t){
+    return u_pA + u_pB * cos(6.28318 * (u_pC * t + u_pD));
+  }
+  float starfield(vec2 uv){
+    vec2 g = uv * 130.0;
+    vec2 id = floor(g);
+    float h = hash21(id);
+    float on = step(0.992, h);
+    float tw = 0.55 + 0.45 * sin(u_time * 1.4 + h * 90.0);
+    vec2 f = fract(g) - 0.5;
+    float pt = smoothstep(0.5, 0.0, length(f));
+    return on * tw * pt;
+  }
+
+  void main(){
+    float aspect = u_res.x / u_res.y;
+    vec2 scr = gl_FragCoord.xy / u_res;                  // 0..1 screen space
+    vec2 uv  = (gl_FragCoord.xy - 0.5 * u_res) / u_res.y; // aspect-correct, centred
+    float t = u_time;
+
+    // gentle ripple displacement from a cast stone
+    vec2 dir = uv - u_ripple.xy;
+    float dl = length(dir) + 1e-4;
+    float wave = sin(dl * 22.0 - u_ripple.w * 7.0) * exp(-dl * 4.0) * exp(-u_ripple.w * 1.6);
+    vec2 p = uv + (dir / dl) * wave * u_ripple.z * 0.045;
+
+    vec2 par = u_mouse * 0.05;            // parallax
+    float hue = u_hue + t * 0.008;
+
+    // --- sky: cool above, warmer toward the horizon ---
+    float grad = smoothstep(0.0, 1.0, scr.y);
+    vec3 col = mix(palette(0.18 + hue), palette(0.58 + hue), grad);
+    col *= mix(0.42, 1.05, grad);
+
+    // --- a luminous horizon band (atmospheric scattering) ---
+    float band = exp(-pow((scr.y - 0.34) * 4.6, 2.0));
+    col += palette(0.50 + hue) * band * (0.22 + u_bloom * 0.32);
+
+    // --- stars in the upper sky ---
+    col += vec3(0.82, 0.86, 1.0) * starfield(uv + par * 0.3) * smoothstep(0.42, 1.0, scr.y) * 0.7;
+
+    // --- fog via two-level domain warp (the "dream" texture), pooling low ---
+    vec2 fp = p * 1.7 + par * 2.2;
+    fp.x += t * 0.018;
+    fp.y -= t * 0.006;
+    vec2 q = vec2(fbm(fp), fbm(fp + vec2(5.2, 1.3)));
+    float wamt = 3.0 + u_warp * 2.6;
+    vec2 r = vec2(fbm(fp + wamt * q + vec2(1.7, 9.2) + 0.10 * t),
+                  fbm(fp + wamt * q + vec2(8.3, 2.8) + 0.084 * t));
+    float f = fbm(fp + wamt * r);
+    float low = smoothstep(0.72, 0.0, scr.y);           // more fog toward the floor
+    float fog = smoothstep(0.18, 0.95, f) * (0.32 + 0.68 * low);
+    vec3 fogCol = palette(0.40 + f * 0.5 + hue + r.x * 0.16);
+    col = mix(col, fogCol, fog * 0.82);
+
+    // --- the moon: a luminous pale disc with a soft warm halo (screen-space) ---
+    vec2 mc = vec2(0.70, 0.70) + u_mouse * 0.012;
+    vec2 mo = (scr - mc); mo.x *= aspect;
+    float md = length(mo);
+    float halo = exp(-md * 7.0) * (0.6 + u_bloom * 0.9);
+    col += palette(0.64 + hue) * halo * 0.40;            // tinted outer glow
+    col += vec3(0.55, 0.58, 0.66) * halo * 0.18;          // cool inner bloom
+    float surf = vnoise(mo * 16.0);                        // faint surface (cheap; only the disc uses it)
+    float disc = smoothstep(0.052, 0.045, md);
+    vec3 moonTint = mix(vec3(0.94, 0.92, 0.86), palette(0.7 + hue) + 0.45, 0.35);
+    vec3 moonCol = moonTint * (0.82 + 0.22 * surf);
+    col = mix(col, moonCol, disc);
+
+    // --- mood phase: night (phase~0.5) darkest, dusk/dawn lift a little ---
+    col *= 1.0 - 0.32 * sin(u_phase * 3.14159);
+    col += col * u_bloom * 0.15;
+
+    // --- vignette ---
+    float vig = smoothstep(1.3, 0.34, length(uv * vec2(aspect, 1.0)));
+    col *= mix(0.55, 1.0, vig);
+
+    // (no per-pixel film grain: its Nyquist-frequency energy aliased into moiré
+    //  "bars" when the OS downsamples a scaled display; the palette + fog dither enough)
+
+    // --- gentle saturation lift + soft filmic curve ---
+    float lum = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(vec3(lum), col, 1.14);
+    col = max(col, 0.0);
+    col = col / (col + 0.9);
+    col = pow(col, vec3(0.85));
+
+    fragColor = vec4(col, 1.0);
+  }`;
+
+  function compile(type, src){
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
+      console.error("[NOCTURNE] shader error:\n" + gl.getShaderInfoLog(sh));
+      return null;
+    }
+    return sh;
+  }
+  function linkProgram(){
+    const vs = compile(gl.VERTEX_SHADER, VERT);
+    const fs = compile(gl.FRAGMENT_SHADER, FRAG);
+    if(!vs || !fs) return null;
+    const p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs);
+    gl.linkProgram(p);
+    if(!gl.getProgramParameter(p, gl.LINK_STATUS)){
+      console.error("[NOCTURNE] program link error:\n" + gl.getProgramInfoLog(p));
+      return null;
+    }
+    return p;
+  }
+
+  function init(cv){
+    canvas = cv;
+    // ?nogl forces the Canvas2D path (for testing the fallback, or if WebGL misbehaves)
+    if(/[?&]nogl\b/.test(location.search)) return initCanvas2D(cv);
+    try {
+      gl = canvas.getContext("webgl2", { antialias:false, alpha:false, depth:false,
+        powerPreference:"high-performance", preserveDrawingBuffer:false });
+    } catch(e){ gl = null; }
+    if(!gl){ return initCanvas2D(cv); }
+
+    prog = linkProgram();
+    if(!prog){ gl = null; return initCanvas2D(cv); }
+
+    vao = gl.createVertexArray();   // WebGL2 wants a bound VAO even with no attribs
+    gl.bindVertexArray(vao);
+    ["u_res","u_time","u_mouse","u_warp","u_bloom","u_hue","u_phase","u_ripple",
+     "u_pA","u_pB","u_pC","u_pD"].forEach(n => uni[n] = gl.getUniformLocation(prog, n));
+
+    mode = "webgl";
+    resize();
+    return "webgl";
+  }
+
+  function initCanvas2D(cv){
+    canvas = cv;
+    c2d = canvas.getContext("2d");
+    mode = "canvas";
+    console.warn("[NOCTURNE] WebGL2 unavailable — falling back to Canvas2D.");
+    resize();
+    return "canvas";
+  }
+
+  function setDream(d){ dream = d; }
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cw = window.innerWidth, ch = window.innerHeight;
+    // Render at native device resolution (1:1) so there is NO fractional upscale —
+    // fractional upscaling is what beat against the pixel grid into "refreshing bars".
+    // The Canvas2D fallback (smooth gradients) can afford half-res with a clean 2x upscale.
+    let scale = (mode === "canvas") ? 0.5 : 1.0;
+    W = Math.max(1, Math.round(cw * dpr * scale));
+    H = Math.max(1, Math.round(ch * dpr * scale));
+    // On very large displays, step down by clean integer halves (still no moiré) to stay in budget.
+    while(mode === "webgl" && W * H > MAX_PIXELS){
+      scale *= 0.5;
+      W = Math.max(1, Math.round(cw * dpr * scale));
+      H = Math.max(1, Math.round(ch * dpr * scale));
+    }
+    canvas.width = W; canvas.height = H;
+    canvas.style.width = cw + "px";
+    canvas.style.height = ch + "px";
+    if(mode === "webgl") gl.viewport(0, 0, W, H);
+  }
+
+  // cosine palette in JS (matches the shader) for the Canvas2D path
+  function jsPalette(t){
+    const a = dream ? dream.palA : [0.1,0.12,0.2];
+    const b = dream ? dream.palB : [0.18,0.18,0.26];
+    const c = dream ? dream.palC : [1,1,1];
+    const d = dream ? dream.palD : [0,0.08,0.18];
+    const f = ch => Math.round(255 * Math.min(1, Math.max(0,
+      a[ch] + b[ch] * Math.cos(6.28318 * (c[ch] * t + d[ch])))));
+    return `rgb(${f(0)},${f(1)},${f(2)})`;
+  }
+
+  function render(s){
+    if(mode === "webgl") return renderGL(s);
+    if(mode === "canvas") return renderC2D(s);
+  }
+
+  function renderGL(s){
+    gl.useProgram(prog);
+    gl.bindVertexArray(vao);
+    gl.uniform2f(uni.u_res, W, H);
+    gl.uniform1f(uni.u_time, s.time);
+    gl.uniform2f(uni.u_mouse, s.mouse.x, s.mouse.y);
+    gl.uniform1f(uni.u_warp, s.u.warp);
+    gl.uniform1f(uni.u_bloom, s.u.bloom);
+    gl.uniform1f(uni.u_hue, s.u.hue);
+    gl.uniform1f(uni.u_phase, s.u.phase);
+    gl.uniform4f(uni.u_ripple, s.ripple.x, s.ripple.y, s.ripple.str, s.ripple.age);
+    const d = dream || {};
+    gl.uniform3fv(uni.u_pA, d.palA || [0.1,0.12,0.2]);
+    gl.uniform3fv(uni.u_pB, d.palB || [0.18,0.18,0.26]);
+    gl.uniform3fv(uni.u_pC, d.palC || [1,1,1]);
+    gl.uniform3fv(uni.u_pD, d.palD || [0,0.08,0.18]);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  // A calmer, cheaper rendition for machines without WebGL2.
+  function renderC2D(s){
+    const ctx = c2d, w = W, h = H, t = s.time, hue = s.u.hue + t * 0.008;
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, jsPalette(0.6 + hue));
+    sky.addColorStop(0.55, jsPalette(0.28 + hue));
+    sky.addColorStop(1, jsPalette(0.12 + hue));
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
+    // drifting fog blobs
+    ctx.globalCompositeOperation = "lighter";
+    for(let i=0;i<5;i++){
+      const ph = t * 0.04 * (0.5 + i*0.15) + i*1.7;
+      const bx = (0.5 + 0.42*Math.sin(ph + s.mouse.x*0.4)) * w;
+      const by = (0.62 + 0.18*Math.cos(ph*0.8)) * h;
+      const rad = (0.22 + 0.10*Math.sin(ph*1.3)) * h;
+      const g = ctx.createRadialGradient(bx, by, 0, bx, by, rad);
+      g.addColorStop(0, jsPalette(0.45 + hue + i*0.05).replace("rgb","rgba").replace(")", ",0.10)"));
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, rad, 0, 6.2832); ctx.fill();
+    }
+    // moon
+    const mx = (0.66 - s.mouse.x*0.015) * w, my = (0.26 - s.mouse.y*0.015) * h;
+    const mr = 0.05 * h;
+    const mg = ctx.createRadialGradient(mx, my, 0, mx, my, mr*7);
+    mg.addColorStop(0, jsPalette(0.04 + hue).replace("rgb","rgba").replace(")", ",0.9)"));
+    mg.addColorStop(0.12, jsPalette(0.62 + hue).replace("rgb","rgba").replace(")", `,${0.18+s.u.bloom*0.2})`));
+    mg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, mr*7, 0, 6.2832); ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+    // vignette
+    const vg = ctx.createRadialGradient(w/2, h/2, h*0.2, w/2, h/2, h*0.85);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.55)");
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
+  }
+
+  return { init, setDream, resize, render, getMode: () => mode };
+})();
+
+/* ---------------------------------------------------------------------------
+   Audio — the conductor. Generative ambient, scheduled sample-accurately.
+   Chord changes & bells push "mood" the visuals and poetry read from.
+--------------------------------------------------------------------------- */
+const Audio = (() => {
+  let ctx = null, master, comp, filter, lfo, lfoGain, conv, wet, dry, bus;
+  let started = false, muted = false, volume = 0.8;
+  let dream = null, scale = [], root = 48;
+  let voices = [];               // sustaining drone voices
+  let timer = null;
+  const LOOKAHEAD = 0.1, TICK = 25;
+  let nextChord = 0, nextBell = 0, chordCount = 0;
+  let _warp = 0.32, _bloom = 0.0, _huePulse = 0.0;
+  let onPhrase = () => {};
+
+  const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
+  // snap an arbitrary scale-degree index to a concrete midi note in the mode
+  function degree(i){
+    const n = scale.length;
+    const oct = Math.floor(i / n);
+    return root + oct * 12 + scale[((i % n) + n) % n];
+  }
+
+  function buildIR(seconds, decay){
+    const rate = ctx.sampleRate, len = Math.floor(rate * seconds);
+    const buf = ctx.createBuffer(2, len, rate);
+    for(let ch=0; ch<2; ch++){
+      const d = buf.getChannelData(ch);
+      for(let i=0;i<len;i++){
+        d[i] = (Math.random()*2 - 1) * Math.pow(1 - i/len, decay);
+      }
+    }
+    return buf;
+  }
+
+  function makeVoice(freq, target){
+    const g = ctx.createGain(); g.gain.value = 0;
+    const o1 = ctx.createOscillator(), o2 = ctx.createOscillator();
+    o1.type = "sine"; o2.type = "triangle";
+    o1.frequency.value = freq; o2.frequency.value = freq;
+    o1.detune.value = -5; o2.detune.value = 5;
+    o1.connect(g); o2.connect(g); g.connect(bus);
+    o1.start(); o2.start();
+    g.gain.setTargetAtTime(target, ctx.currentTime, 6.0);
+    return { o1, o2, g, target };
+  }
+
+  function startDrone(){
+    // low root, fifth, and a wandering upper voice — all in-scale -> always consonant
+    voices = [
+      makeVoice(midiToFreq(root), 0.20),
+      makeVoice(midiToFreq(root + 7), 0.13),
+      makeVoice(midiToFreq(degree(8)), 0.09),
+    ];
+  }
+
+  function glideVoice(v, freq, time){
+    v.o1.frequency.setTargetAtTime(freq, time, 4.0);
+    v.o2.frequency.setTargetAtTime(freq, time, 4.0);
+  }
+  function changeChord(time){
+    chordCount++;
+    // low anchor: usually the root, occasionally a fourth below for gentle harmonic motion
+    const low = Math.random() < 0.25 ? root - 5 : root;
+    glideVoice(voices[0], midiToFreq(low), time);
+    // middle: the fifth above the anchor, occasionally the fourth
+    const mid = low + (Math.random() < 0.3 ? 5 : 7);
+    glideVoice(voices[1], midiToFreq(mid), time);
+    // upper: wander within the mode, one or two octaves up
+    const up = degree(6 + Math.floor(Math.random() * 7));
+    glideVoice(voices[2], midiToFreq(up), time);
+    // breathe: nudge the lowpass and the shared mood
+    if(filter) filter.frequency.setTargetAtTime(700 + Math.random() * 500, time, 3.0);
+    _warp = 0.22 + Math.random() * 0.34;
+    _bloom = Math.min(1.0, _bloom + 0.22);
+    _huePulse += 0.03;
+    onPhrase();
+  }
+
+  function scheduleBell(time, strong){
+    const idx = 7 + Math.floor(Math.random()*10);   // upper register
+    const freq = midiToFreq(degree(idx));
+    const o = ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.value = freq;
+    const g = ctx.createGain();
+    const peak = (strong ? 0.30 : 0.16) * (0.7 + Math.random()*0.3);
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(peak, time + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + (strong ? 5.0 : 3.2));
+    // a soft partial a fifth up for shimmer
+    const o2 = ctx.createOscillator();
+    o2.type = "sine"; o2.frequency.value = freq * 1.5;
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.0001, time);
+    g2.gain.exponentialRampToValueAtTime(peak * 0.4, time + 0.02);
+    g2.gain.exponentialRampToValueAtTime(0.0001, time + (strong ? 4.0 : 2.4));
+    o.connect(g); g.connect(bus);
+    o2.connect(g2); g2.connect(bus);
+    const stop = time + (strong ? 5.2 : 3.4);
+    o.start(time); o.stop(stop);
+    o2.start(time); o2.stop(stop);
+    _bloom = Math.min(1.0, _bloom + (strong ? 0.5 : 0.18));
+  }
+
+  function scheduler(){
+    if(!ctx) return;
+    const now = ctx.currentTime;
+    while(nextChord < now + LOOKAHEAD){
+      changeChord(nextChord);
+      nextChord += 11 + Math.random()*9;       // ~11–20s phrases
+    }
+    while(nextBell < now + LOOKAHEAD){
+      scheduleBell(nextBell, false);
+      nextBell += 1.6 + Math.random()*3.6;      // sparse shimmer
+    }
+    _bloom *= 0.90;                              // mood pulse relaxes
+  }
+
+  async function start(d){
+    if(started) return true;
+    started = true;                       // claim immediately — start() is async, avoid re-entrancy
+    dream = d; scale = d.mode; root = d.root;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) throw new Error("no WebAudio");
+      ctx = new AC();
+      await ctx.resume();
+      // if autoplay policy kept us suspended, treat as muted-but-beautiful so
+      // poetry/mood fall back to their self-driven cadence instead of stalling
+      if(ctx.state !== "running") throw new Error("audio suspended (no gesture)");
+    } catch(e){
+      console.warn("[NOCTURNE] audio unavailable — the dream runs muted-but-beautiful.", e);
+      started = false;
+      return false;
+    }
+
+    master = ctx.createGain(); master.gain.value = 0.0;
+    comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -18; comp.knee.value = 24; comp.ratio.value = 4;
+    comp.attack.value = 0.01; comp.release.value = 0.4;
+    filter = ctx.createBiquadFilter(); filter.type = "lowpass";
+    filter.frequency.value = 900; filter.Q.value = 0.6;
+    conv = ctx.createConvolver(); conv.buffer = buildIR(3.6, 3.0);
+    wet = ctx.createGain(); wet.gain.value = 0.55;
+    dry = ctx.createGain(); dry.gain.value = 0.7;
+    bus = ctx.createGain(); bus.gain.value = 1.0;
+
+    bus.connect(filter);
+    filter.connect(dry); dry.connect(master);
+    filter.connect(conv); conv.connect(wet); wet.connect(master);
+    master.connect(comp); comp.connect(ctx.destination);
+
+    lfo = ctx.createOscillator(); lfo.frequency.value = 0.05;
+    lfoGain = ctx.createGain(); lfoGain.gain.value = 340;
+    lfo.connect(lfoGain); lfoGain.connect(filter.frequency); lfo.start();
+
+    startDrone();
+    master.gain.setTargetAtTime(muted ? 0 : volume, ctx.currentTime, 4.0);
+
+    nextChord = ctx.currentTime + 0.4;
+    nextBell  = ctx.currentTime + 2.0;
+    timer = setInterval(scheduler, TICK);
+    console.log("[NOCTURNE] AudioContext.state =", ctx.state, "· mode:", dream.modeName, "· root midi", root);
+    return true;
+  }
+
+  function castStone(){
+    if(!ctx || !bus) return;   // bus may not exist yet during start()'s async setup
+    scheduleBell(ctx.currentTime + 0.01, true);
+    _warp = Math.min(0.85, _warp + 0.2);
+    _huePulse += 0.05;
+  }
+  function getMood(){ return started ? { warp:_warp, bloom:_bloom } : null; }
+  function consumeHue(){ const h = _huePulse; _huePulse = 0; return h; }
+  // guard on the actual node, not `started` — start() sets started=true before
+  // the graph (master) exists, and these can be called synchronously from begin()
+  function setVolume(v){ volume = v; if(master && !muted) master.gain.setTargetAtTime(v, ctx.currentTime, 0.15); }
+  function toggleMute(){
+    muted = !muted;
+    if(master) master.gain.setTargetAtTime(muted ? 0 : volume, ctx.currentTime, 0.2);
+    return muted;
+  }
+  function suspend(){ if(ctx && ctx.state === "running") ctx.suspend(); }
+  function resume(){ if(ctx && ctx.state === "suspended" && !muted) ctx.resume(); }
+
+  return { start, castStone, getMood, consumeHue, setVolume, toggleMute,
+           suspend, resume, isStarted: () => started, isMuted: () => muted };
+})();
+
+/* ---------------------------------------------------------------------------
+   Poet — generative dream-poetry. Tracery-style grammar + order-2 Markov spice.
+   The personal motif (from the typed memory) recurs and slowly forgets itself.
+--------------------------------------------------------------------------- */
+const Poet = (() => {
+  let el, rng = Math.random, motif = null, decay = 0, count = 0, busy = false;
+  let fallbackTimer = null, current = "";
+
+  const STOP = new Set((
+    // English
+    "the a an of to and in on at for with my your i me we it is was that this " +
+    "be been are am as but or so if then there here not no yes do did " +
+    // French (so e.g. \"la forêt\" keeps \"forêt\", \"mon ex\" keeps \"mon ex\")
+    "le la les un une de des du au aux mon ma mes ton ta tes son sa ses notre nos votre vos " +
+    "leur leurs ce cet cette ces et ou mais donc or ni car ne pas plus en y dans sur sous " +
+    "avec sans pour par je tu il elle on nous vous ils elles que qui est sont"
+  ).split(" "));
+
+  const G = {
+    origin: [
+      "#open#, #clause#.",
+      "#clause#.",
+      "#open# #clause#.",
+      "#clause#, and #close#.",
+      "somewhere, #clause#.",
+      "#clause# — #close#.",
+    ],
+    open: [
+      "in the #place#", "beneath #aThing#", "at the edge of the #place#",
+      "once, in a #place#", "far from the #place#", "between #plural# and #plural#",
+      "all night", "before the #noun#",
+    ],
+    clause: [
+      "the #noun# #verb#", "a #adj# #noun# #verb#", "#aThing# #verb# without a sound",
+      "the #noun# remembers your name", "the #plural# #verb#", "nothing here keeps its name",
+      "the #adj# #noun# is almost a #noun#", "I am holding a #adj# #noun#",
+    ],
+    close: [
+      "it does not end", "the light forgets us", "I am almost awake",
+      "the #noun# stays", "no one is afraid", "the tide keeps the rest",
+      "you were there, I think",
+    ],
+    aThing: ["a #adj# #noun#", "the #noun#", "an unlit #noun#"],
+    noun: ["tide","ember","threshold","hush","lantern","mirror","river","bell","doorway",
+      "shadow","feather","harbor","window","name","snow","orchard","staircase","ash",
+      "candle","field","clock","letter","tide","glass","moth","rain"],
+    plural: ["lanterns","tides","names","doorways","swallows","mirrors","embers","bells",
+      "windows","staircases","clouds","rooms"],
+    verb: ["folds inward","drifts","dissolves","remembers","unmoors","listens","waits",
+      "breathes","turns to glass","opens slowly","comes undone","goes dark","keeps singing",
+      "forgets the shore"],
+    adj: ["warm","pale","distant","half-remembered","drowned","silver","quiet","endless",
+      "soft","unfinished","amber","sleepless","weightless","dim"],
+    place: ["orchard","shoreline","hallway","station","garden","archive","harbor","field",
+      "stairwell","greenhouse","library of rain"],
+  };
+
+  function modify(name, s){
+    if(name === "capitalize") return s.charAt(0).toUpperCase() + s.slice(1);
+    if(name === "a") return (/^[aeiou]/i.test(s) ? "an " : "a ") + s;
+    return s;
+  }
+  function expand(rule){
+    return rule.replace(/#([^#]+)#/g, (_, sym) => {
+      const parts = sym.split(".");
+      const key = parts[0];
+      let out = expand(pick(G[key] || [key], rng));
+      for(let i=1;i<parts.length;i++) out = modify(parts[i], out);
+      return out;
+    });
+  }
+
+  // --- order-2 Markov over a small embedded dream-corpus ---
+  const CORPUS = ("i walked a long time through rooms that kept becoming other rooms . " +
+    "the water was warm and remembered my name . somewhere a bell was ringing underwater , " +
+    "slow and patient , and i understood it without listening . the staircase folded into " +
+    "light and i climbed it anyway . there were people i loved standing just outside the " +
+    "frame , and when i turned they were weather . the tide came in across the floor of the " +
+    "house and nothing was ruined . i held a small warm thing and could not say what it was . " +
+    "the windows opened onto more windows . i was almost awake and did not want to be .");
+  let chain = null;
+  function buildChain(){
+    const w = CORPUS.split(/\s+/);
+    chain = new Map();
+    for(let i=0;i<w.length-2;i++){
+      const k = w[i] + " " + w[i+1];
+      if(!chain.has(k)) chain.set(k, []);
+      chain.get(k).push(w[i+2]);
+    }
+  }
+  function markovLine(){
+    if(!chain) buildChain();
+    const keys = [...chain.keys()].filter(k => /^[a-z]/.test(k));
+    let [a, b] = pick(keys, rng).split(" ");
+    const out = [a, b];
+    for(let i=0;i<10 + Math.floor(rng()*5);i++){
+      const nx = chain.get(a + " " + b);
+      if(!nx) break;
+      const w = pick(nx, rng);
+      if(w === "." || w === ",") break;
+      out.push(w); a = b; b = w;
+    }
+    return out.join(" ").replace(/\s+,/g, ",");
+  }
+
+  function buildMotif(memory){
+    if(!memory) return null;
+    const clean = memory.toLowerCase().replace(/[^\p{L}\p{N}' ]/gu, " ").replace(/\s+/g, " ").trim();
+    if(!clean) return null;
+    const salient = clean.split(" ").filter(w => w.length > 2 && !STOP.has(w));
+    // prefer an evocative word; otherwise keep the whole phrase so short inputs ("my ex") still recur
+    const w = salient.length ? pick(salient, rng) : clean;
+    const templates = [
+      "I keep " + w + " where the dark can't reach",
+      "do not let me forget " + w,
+      "there was " + w + ", I think there was " + w,
+      "somewhere I am still holding " + w,
+      w + ", and the tide keeps the rest",
+    ];
+    return pick(templates, rng);
+  }
+
+  // letter-decay that reads as poetic softening, never below legibility
+  function corrupt(s, amt){
+    if(amt <= 0) return s;
+    let out = "";
+    for(let i=0;i<s.length;i++){
+      const c = s[i];
+      if(c === " "){ out += c; continue; }
+      const r = Math.random();
+      if(r < amt * 0.5) out += " ";                 // drop -> thin space
+      else if(r < amt * 0.62 && i+1 < s.length && s[i+1] !== " "){ out += s[i+1] + c; i++; } // transpose
+      else out += c;
+    }
+    return out;
+  }
+
+  function init(node, seedRng, memory){
+    el = node; rng = seedRng || Math.random;
+    motif = buildMotif(memory);
+    decay = 0; count = 0; busy = false;
+  }
+
+  function next(){
+    if(busy || !el) return;
+    count++;
+    let line;
+    // the very first line is the memory you gave — then it recurs and slowly forgets itself
+    if(motif && (count === 1 || count % 4 === 0)){
+      line = corrupt(motif, Math.min(decay, 0.4));
+      decay += 0.045;
+    } else if(rng() < 0.22){
+      line = markovLine();
+    } else {
+      line = expand("#origin#");
+    }
+    show(line);
+  }
+
+  function show(line){
+    busy = true; current = line.replace(/ /g, "");
+    el.textContent = line;
+    requestAnimationFrame(() => el.classList.add("show"));
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const hold = reduced ? 5200 : 6800;
+    setTimeout(() => {
+      el.classList.remove("show");
+      setTimeout(() => { busy = false; }, reduced ? 1400 : 3400);
+    }, hold);
+  }
+
+  // when there's no audio conductor, run our own slow cadence
+  function startFallback(){
+    if(fallbackTimer) return;
+    next();
+    fallbackTimer = setInterval(next, 13000);
+  }
+
+  return { init, next, startFallback, current: () => current };
+})();
+
+/* ---------------------------------------------------------------------------
+   State — localStorage persistence, fully guarded.
+--------------------------------------------------------------------------- */
+const State = (() => {
+  const KEY = "nocturne.v1";
+  function load(){
+    try {
+      const raw = localStorage.getItem(KEY);
+      if(!raw) return {};
+      const o = JSON.parse(raw);
+      return (o && o.version === 1) ? o : {};
+    } catch(e){ return {}; }
+  }
+  function save(patch){
+    try {
+      const cur = load();
+      localStorage.setItem(KEY, JSON.stringify(Object.assign({ version:1 }, cur, patch)));
+    } catch(e){ /* private mode / quota — never break the dream */ }
+  }
+  return { load, save };
+})();
+
+/* ---------------------------------------------------------------------------
+   Loop — one rAF clock. Owns time, smooths mouse, lerps mood into uniforms.
+--------------------------------------------------------------------------- */
+const Loop = (() => {
+  let dream, reduced = false, t0 = 0, last = 0, raf = 0, paused = false, running = false;
+  const mouse = { x:0, y:0 }, mouseT = { x:0, y:0 };
+  const u = { warp:0.3, bloom:0.0, hue:0.0, phase:0.5 };
+  const ripple = { x:0, y:0, str:0, age:99 };
+
+  function start(d, red){
+    dream = d; reduced = red;
+    t0 = performance.now(); last = t0; running = true;
+    if(reduced){ u.warp = 0.25; }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function frame(now){
+    raf = requestAnimationFrame(frame);
+    if(paused){ last = now; return; }
+    let dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const speed = (reduced ? 0.22 : 1.0) * (dream ? dream.drift : 1.0);
+    const time = ((now - t0) / 1000) * speed;
+
+    // smoothed cursor parallax
+    mouse.x += (mouseT.x - mouse.x) * Math.min(1, dt * 2.6);
+    mouse.y += (mouseT.y - mouse.y) * Math.min(1, dt * 2.6);
+
+    // mood — driven by audio when present, else slow self-generated breathing
+    const am = Audio.getMood();
+    const tWarp  = am ? am.warp  : 0.30 + 0.14 * Math.sin(time * 0.06);
+    const tBloom = am ? am.bloom : 0.14 + 0.12 * (0.5 + 0.5 * Math.sin(time * 0.11));
+    u.warp  += (tWarp  - u.warp)  * Math.min(1, dt * 0.7);
+    u.bloom += (tBloom - u.bloom) * Math.min(1, dt * 2.0);
+    u.hue   += dt * 0.006 * speed + Audio.consumeHue();
+    u.phase  = 0.5 + 0.5 * Math.sin(time * 0.012);
+
+    // ripple relaxes
+    ripple.age += dt;
+    ripple.str *= Math.exp(-dt * 0.7);
+
+    Gfx.render({ time, mouse, u, ripple });
+  }
+
+  function setPaused(p){ paused = p; if(!p) last = performance.now(); }
+  function castRipple(x, y){ ripple.x = x; ripple.y = y; ripple.str = 1; ripple.age = 0; }
+  function setMouseTarget(x, y){ mouseT.x = x; mouseT.y = y; }
+  function isRunning(){ return running; }
+  return { start, setPaused, castRipple, setMouseTarget, isRunning };
+})();
+
+/* ---------------------------------------------------------------------------
+   main — wire the ritual, inputs, controls; begin the dream on first gesture.
+--------------------------------------------------------------------------- */
+(function main(){
+  const canvas = document.getElementById("gl");
+  const lineEl = document.getElementById("line");
+  const ritual = document.getElementById("ritual");
+  const input  = document.getElementById("r-input");
+  const dock   = document.getElementById("dock");
+  const glyph  = document.getElementById("glyph");
+  const panel  = document.getElementById("panel");
+  const vol    = document.getElementById("vol");
+  const muteBtn= document.getElementById("muteBtn");
+  const keepBtn= document.getElementById("keepBtn");
+
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const saved = State.load();
+  let begun = false;
+  let dream = null;
+
+  Gfx.init(canvas);
+  window.addEventListener("resize", () => Gfx.resize());
+  ritual.style.display = "none";   // this build drifts straight in — no opening prompt
+
+  if(typeof saved.volume === "number"){ vol.value = saved.volume; }
+
+  function dateSeedString(){
+    const d = new Date();
+    return "drift-" + d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate();
+  }
+
+  function begin(memory){
+    if(begun) return; begun = true;
+    memory = (memory || "").trim();
+    const seedStr = memory || dateSeedString();
+    const seed = fnv1a(seedStr);
+    dream = deriveDream(mulberry32(seed));
+
+    Gfx.setDream(dream);
+    Poet.init(lineEl, mulberry32((seed ^ 0x9e3779b9) >>> 0), memory);
+    Poet.startFallback();                       // poetry drifts on its own gentle cadence
+    Audio.setVolume(parseFloat(vol.value));
+    Loop.start(dream, reduced);                 // the dreamscape moves immediately
+    State.save({ volume: parseFloat(vol.value) });
+    setTimeout(() => dock.classList.add("ready"), 1800);
+  }
+
+  // Drift straight in. Audio (blocked by browser autoplay policy) wakes on the
+  // first interaction; a faint hint says so, then fades on the first gesture.
+  const hint = document.createElement("div");
+  hint.textContent = "click anywhere for sound";
+  hint.style.cssText = "position:fixed;left:0;right:0;bottom:7%;text-align:center;z-index:6;"
+    + "pointer-events:none;opacity:0;transition:opacity 2s ease;"
+    + "font-family:'Iowan Old Style',Palatino,Georgia,serif;font-style:italic;"
+    + "font-size:.82rem;letter-spacing:.16em;color:rgba(233,227,214,.34);";
+  document.body.appendChild(hint);
+  setTimeout(() => { hint.style.opacity = "1"; }, 900);
+
+  let woke = false;
+  function wakeAudio(){
+    if(!dream) return;
+    if(!Audio.isStarted()) Audio.start(dream); else Audio.resume();
+    if(!woke){ woke = true; hint.style.opacity = "0"; setTimeout(() => hint.remove(), 1800); }
+  }
+  window.addEventListener("pointerdown", wakeAudio);
+  window.addEventListener("keydown", wakeAudio);
+
+  begin("");   // <- the whole change: start the dream on load, no text prompt
+
+  // ---- gentle interaction once the dream is running ----
+  window.addEventListener("pointermove", e => {
+    Loop.setMouseTarget((e.clientX / innerWidth) * 2 - 1, -((e.clientY / innerHeight) * 2 - 1));
+  });
+
+  window.addEventListener("pointerdown", e => {
+    if(!begun || e.target.closest("#dock")) return;
+    const cx = (e.clientX / innerWidth - 0.5) * (innerWidth / innerHeight);
+    const cy = 0.5 - e.clientY / innerHeight;
+    Loop.castRipple(cx, cy);
+    Audio.castStone();
+  });
+
+  window.addEventListener("keydown", e => {
+    if(e.code === "Space" && begun){
+      e.preventDefault();
+      const m = Audio.toggleMute();
+      muteBtn.textContent = m ? "off" : "on";
+    }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    Loop.setPaused(document.hidden);
+    if(document.hidden) Audio.suspend(); else Audio.resume();
+  });
+
+  // ---- controls ----
+  glyph.addEventListener("click", () => panel.classList.toggle("open"));
+  vol.addEventListener("input", () => { Audio.setVolume(parseFloat(vol.value)); State.save({ volume: parseFloat(vol.value) }); });
+  muteBtn.addEventListener("click", () => { const m = Audio.toggleMute(); muteBtn.textContent = m ? "off" : "on"; });
+  keepBtn.addEventListener("click", () => {
+    const line = Poet.current();
+    if(!line) return;
+    const cur = State.load();
+    const kept = Array.isArray(cur.keptLines) ? cur.keptLines : [];
+    kept.push({ line, at: Date.now() });
+    while(kept.length > 50) kept.shift();
+    State.save({ keptLines: kept });
+    keepBtn.textContent = "kept ✓";
+    setTimeout(() => keepBtn.textContent = "keep this line", 1600);
+  });
+})();
+</script>
+</body>
+</html>
